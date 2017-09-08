@@ -7,7 +7,8 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    count = 0;
+    countRgb = 0;
+    countIr = 0;
 
     connect(ui->captureBtn,SIGNAL(clicked(bool)),this,SLOT(onCaptureBtn()));
 }
@@ -98,6 +99,23 @@ void MainWindow::showOutLabel(Mat inSrc)
 void MainWindow::onTimeOut()
 {
     Status rc = STATUS_OK;
+
+    rc = depthStream.readFrame(&depthFrame);
+    if(rc != STATUS_OK)
+    {
+        printf("depthStream.readFrame() err..\n");
+        return ;
+    }
+    Mat depthSrc = Mat(depthFrame.getHeight(),depthFrame.getWidth(),CV_16UC1,(void*)depthFrame.getData());
+    if(depthSrc.empty())
+    {
+        printf("depthSrc.empty()...\n");
+        return ;
+    }
+    depthMat = depthSrc.clone();
+    showOutLabel(depthMat);
+
+
     if(ui->checkBox->isChecked()==false)
     {
         rc = rgbStream.readFrame(&rgbFrame);
@@ -112,23 +130,18 @@ void MainWindow::onTimeOut()
             printf("rgbSrc.empty()...\n");
             return ;
         }
-        rc = depthStream.readFrame(&depthFrame);
-        if(rc != STATUS_OK)
-        {
-            printf("depthStream.readFrame() err..\n");
-            return ;
-        }
-        Mat depthSrc = Mat(depthFrame.getHeight(),depthFrame.getWidth(),CV_16UC1,(void*)depthFrame.getData());
-        if(depthSrc.empty())
-        {
-            printf("depthSrc.empty()...\n");
-            return ;
-        }
+
         rgbMat = rgbSrc.clone();
-    //    imshow("rgbMat",rgbMat);
-        showOutLabel(rgbMat);
-        depthMat = depthSrc.clone();
-        showOutLabel(depthMat);
+
+        if(ui->checkBox_corners->isChecked())
+        {
+            vector<Point2f> corners;
+            if(findChessboardCorners(rgbSrc,Size(13,13),corners))
+            {
+                drawChessboardCorners(rgbSrc,Size(13,13),corners,true);
+            }
+        }
+        showOutLabel(rgbSrc);
     }
     else
     {
@@ -138,20 +151,31 @@ void MainWindow::onTimeOut()
             printf("irStream.readFrame() err..\n");
             return ;
         }
-        //    int aa = irFrame.getVideoMode().getPixelFormat();
-        //    printf("getPixelFormat%d\n",aa);
-        Mat irSrc = Mat(irFrame.getHeight(),irFrame.getWidth(),CV_16UC1,(void*)irFrame.getData());
+
+
+        Mat irSrc = Mat(irFrame.getHeight(),irFrame.getWidth(),CV_8UC3,(void*)irFrame.getData());
         if(irSrc.empty())
         {
             printf("irSrc.empty()...\n");
             return ;
         }
 
-        Mat dst = Mat(irSrc.size(),CV_8UC1);
-        double maxVal,minVal;
-        cv::minMaxLoc(irSrc,&minVal,&maxVal);
-        irSrc.convertTo(dst,CV_8UC1,255/maxVal);
+        Mat dst ;
+        cvtColor(irSrc,dst,CV_BGR2GRAY);
+//        double maxVal,minVal;
+//        cv::minMaxLoc(irSrc,&minVal,&maxVal);
+        double maxVal = ui->hSlider_ir->value();
+        dst.convertTo(dst,CV_8UC1,255/maxVal);
 
+        irMat = dst.clone();
+        if(ui->checkBox_corners->isChecked())
+        {
+            vector<Point2f> corners;
+            if(findChessboardCorners(dst,Size(13,13),corners,CV_CALIB_CB_ADAPTIVE_THRESH))
+            {
+                drawChessboardCorners(dst,Size(13,13),corners,true);
+            }
+        }
         showOutLabel(dst);
     }
 }
@@ -159,36 +183,47 @@ void MainWindow::onTimeOut()
 void MainWindow::onCaptureBtn()
 {
     QString str,strDepth;
-    count++;
-    Mat rgb,depth;
-    flip(rgbMat,rgb,1);
-    cvtColor(rgb,rgb,CV_BGR2RGB);
-    flip(depthMat,depth,1);
-    str = QString::number(count)+".jpg";
-    imwrite(str.toStdString(),rgb);
-    strDepth = "depth"+QString::number(count)+".png";
-    imwrite(strDepth.toStdString(),depth);
+    if(ui->checkBox->isChecked())
+    {
+        countRgb++;
+        Mat rgb,depth;
+        flip(rgbMat,rgb,1);
+        cvtColor(rgb,rgb,CV_BGR2RGB);
+//        flip(depthMat,depth,1);
+        str = QString::number(countRgb)+".jpg";
+        imwrite(str.toStdString(),rgb);
+    }
+    else
+    {
+        countIr++;
+        Mat ir = irMat.clone();
+        str = "ir"+QString::number(countIr)+".jpg";
+        imwrite(str.toStdString(),ir);
+    }
+//    strDepth = "depth"+QString::number(count)+".png";
+//    imwrite(strDepth.toStdString(),depth);
     printf("88888\n");
 }
 
 void MainWindow::on_openCaptureBtn_clicked()
 {
-    Status rc = STATUS_OK;
-    rc = OpenNI::initialize();
-    if(rc != STATUS_OK)
+    if(ui->openCaptureBtn->text()=="open Camera")
     {
-        printf("OpenNI::initialize() err...\n");
-        return ;
-    }
-    rc = device.open(openni::ANY_DEVICE);
-    if(rc != STATUS_OK)
-    {
-        printf("device.open() err...\n");
-        return ;
-    }
+        Status rc = STATUS_OK;
+        rc = OpenNI::initialize();
+        if(rc != STATUS_OK)
+        {
+            printf("OpenNI::initialize() err...\n");
+            return ;
+        }
+        rc = device.open(openni::ANY_DEVICE);
+        if(rc != STATUS_OK)
+        {
+            printf("device.open() err...\n");
+            return ;
+        }
 
-    if(ui->checkBox->isChecked())
-    {
+
         if(device.getSensorInfo(openni::SENSOR_IR)!=NULL)
         {
             rc = irStream.create(device,openni::SENSOR_IR);
@@ -200,6 +235,7 @@ void MainWindow::on_openCaptureBtn_clicked()
         }
         VideoMode model;
         model.setFps(30);
+        model.setPixelFormat(openni::PIXEL_FORMAT_RGB888);
         model.setResolution(640,480);
         rc = irStream.setVideoMode(model);
         if(rc != STATUS_OK)
@@ -207,15 +243,9 @@ void MainWindow::on_openCaptureBtn_clicked()
             printf("irStream.setVideoMode() err...\n");
             return ;
         }
-        rc = irStream.start();
-        if(rc != STATUS_OK)
-        {
-            printf("irStream.start() err...\n");
-            return ;
-        }
-    }
-    else
-    {
+
+
+
         if(device.getSensorInfo(openni::SENSOR_COLOR)!=NULL)
         {
             rc = rgbStream.create(device,openni::SENSOR_COLOR);
@@ -235,6 +265,7 @@ void MainWindow::on_openCaptureBtn_clicked()
                 return ;
             }
         }
+
         if(device.getSensorInfo(openni::SENSOR_DEPTH)!=NULL)
         {
             rc = depthStream.create(device,openni::SENSOR_DEPTH);
@@ -255,11 +286,24 @@ void MainWindow::on_openCaptureBtn_clicked()
             }
         }
 
-        rc = rgbStream.start();
-        if(rc != STATUS_OK)
+        if(ui->checkBox->isChecked())
         {
-            printf("rgbStream.start() err...\n");
-            return ;
+
+            rc = irStream.start();
+            if(rc != STATUS_OK)
+            {
+                printf("irStream.start() err...\n");
+                return ;
+            }
+        }
+        else
+        {
+            rc = rgbStream.start();
+            if(rc != STATUS_OK)
+            {
+                printf("rgbStream.start() err...\n");
+                return ;
+            }
         }
         rc = depthStream.start();
         if(rc != STATUS_OK)
@@ -267,11 +311,33 @@ void MainWindow::on_openCaptureBtn_clicked()
             printf("depthStream.start() err...\n");
             return ;
         }
-    }
+        ui->openCaptureBtn->setText("close Camera");
 
-    timer = new QTimer();
-    connect(timer,SIGNAL(timeout()),this,SLOT(onTimeOut()));
-    timer->setInterval(30);
-    timer->start(30);
-    ui->checkBox->setEnabled(0);
+        timer = new QTimer();
+        connect(timer,SIGNAL(timeout()),this,SLOT(onTimeOut()));
+        timer->setInterval(30);
+        timer->start(30);
+        ui->checkBox->setEnabled(0);
+    }
+    else
+    {
+        timer->stop();
+        delete timer;
+        if(ui->checkBox->isChecked()==false)
+        {
+            depthStream.stop();
+            rgbStream.stop();
+            depthStream.destroy();
+            rgbStream.destroy();
+        }
+        else
+        {
+            irStream.stop();
+            irStream.destroy();
+        }
+        device.close();
+        OpenNI::shutdown();
+        ui->checkBox->setEnabled(true);
+        ui->openCaptureBtn->setText("open Camera");
+    }
 }

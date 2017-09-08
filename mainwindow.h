@@ -27,6 +27,7 @@ public:
     void showOutLabel(Mat inSrc);
 
 
+
 protected slots:
     void onTimeOut();
     void onCaptureBtn();
@@ -42,7 +43,7 @@ private:
     Mat depthMat,rgbMat,irMat;
 
     QTimer *timer;
-    int count;
+    int countRgb , countIr;
 };
 
 #endif // MAINWINDOW_H

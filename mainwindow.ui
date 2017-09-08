@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>831</width>
+    <width>893</width>
     <height>628</height>
    </rect>
   </property>
@@ -99,12 +99,12 @@
      <rect>
       <x>720</x>
       <y>40</y>
-      <width>75</width>
+      <width>131</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>打开摄像头</string>
+     <string>open Camera</string>
     </property>
    </widget>
    <widget class="QCheckBox" name="checkBox">
@@ -120,14 +120,46 @@
      <string>ir</string>
     </property>
    </widget>
+   <widget class="QCheckBox" name="checkBox_corners">
+    <property name="geometry">
+     <rect>
+      <x>730</x>
+      <y>130</y>
+      <width>92</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>检测角点</string>
+    </property>
+   </widget>
+   <widget class="QSlider" name="hSlider_ir">
+    <property name="geometry">
+     <rect>
+      <x>710</x>
+      <y>220</y>
+      <width>160</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="maximum">
+     <number>120</number>
+    </property>
+    <property name="value">
+     <number>50</number>
+    </property>
+    <property name="orientation">
+     <enum>Qt::Horizontal</enum>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>831</width>
-     <height>23</height>
+     <width>893</width>
+     <height>25</height>
     </rect>
    </property>
   </widget>
